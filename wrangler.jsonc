@@ -1,0 +1,14 @@
+{
+  // Configuración de Cloudflare para la web de Perrufest.
+  // La base de datos (D1) y el almacén de fotos (R2) se crean solos en el primer despliegue.
+  "name": "perrufest",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-10-01",
+  "assets": { "directory": "./public" },
+  "d1_databases": [{ "binding": "DB" }],
+  "r2_buckets": [{ "binding": "MEDIA" }],
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
+  // Conserva las variables que configures desde el panel de Cloudflare (MEDIA_URL, etc.)
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}

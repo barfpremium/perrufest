@@ -1,0 +1,14 @@
+{
+  "name": "perrufest-web",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Web de Perrufest — Festival Perruno Familiar (Cloudflare Workers + D1 + R2)",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "local": "node --disable-warning=ExperimentalWarning test/local-server.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.45.0"
+  }
+}
