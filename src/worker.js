@@ -160,7 +160,7 @@ async function route(request, env, ctx) {
     settings: await data.getSettings(db),
     origin: url.origin,
     version,
-    partners: (await data.allPartners(db)).filter((x) => x.events.length),
+    organizers: await data.organizers(db),
   };
   if (request.method === 'POST' && p === '/participa') return postContact(request, env, ctx, c, h);
   if (request.method !== 'GET' && request.method !== 'HEAD') return h.text('Método no permitido', 405);
@@ -172,7 +172,10 @@ async function route(request, env, ctx) {
       if (e && e.published) featured = e;
     }
     featured ||= (await data.pastEvents(db))[0] || null;
-    return h.page(views.home(c, { featured, upcoming: await data.upcomingEvents(db) }));
+    const upcoming = await data.upcomingEvents(db);
+    const edition = upcoming[0] || featured; // la edición «actual»: la próxima, o la última celebrada
+    const editionPartners = edition ? await data.partnersOf(db, edition.id) : [];
+    return h.page(views.home(c, { featured, upcoming, edition, editionPartners }));
   }
   if (p === '/proximos-eventos') return h.page(views.upcomingPage(c, { upcoming: await data.upcomingEvents(db), past: await data.pastEvents(db) }));
   if (p === '/galeria') return h.page(views.galleryIndex(c, { past: await data.pastEvents(db) }));

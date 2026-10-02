@@ -160,9 +160,11 @@ export const getEventBySlug = async (db, slug) => decorate(await one(db, EVENT_S
 export const photosOf = (db, eventId) => all(db, 'SELECT * FROM photos WHERE event_id = ? ORDER BY sort, id', eventId);
 export const videosOf = (db, eventId) => all(db, 'SELECT * FROM videos WHERE event_id = ? ORDER BY sort, id', eventId);
 export const partnersOf = (db, eventId) => all(db,
-  'SELECT p.* FROM partners p JOIN event_partners ep ON ep.partner_id = p.id WHERE ep.event_id = ? ORDER BY p.kind, p.sort, p.name', eventId);
+  "SELECT p.* FROM partners p JOIN event_partners ep ON ep.partner_id = p.id WHERE ep.event_id = ? AND p.kind != 'organizador' ORDER BY p.sort, p.id", eventId);
+/** Organizadores: aparecen siempre, en todas las ediciones */
+export const organizers = (db) => all(db, "SELECT * FROM partners WHERE kind = 'organizador' ORDER BY sort, id");
 export async function allPartners(db) {
-  const rows = await all(db, 'SELECT * FROM partners ORDER BY kind, sort, name');
+  const rows = await all(db, 'SELECT * FROM partners ORDER BY sort, id');
   const links = await all(db, `SELECT ep.partner_id, e.id, e.slug, e.town, e.start_date, e.published FROM event_partners ep
     JOIN events e ON e.id = ep.event_id ORDER BY COALESCE(e.start_date, '9999') DESC`);
   for (const p of rows) p.events = links.filter((l) => l.partner_id === p.id && l.published);

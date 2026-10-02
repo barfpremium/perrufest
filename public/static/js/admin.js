@@ -102,6 +102,11 @@
     });
   });
 
+  // Organizadores: no se asocian a ediciones (salen siempre)
+  var kindSel = document.getElementById('f-kind');
+  var edChecks = document.getElementById('ed-checks');
+  if (kindSel && edChecks) kindSel.addEventListener('change', function () { edChecks.hidden = kindSel.value === 'organizador'; });
+
   // ---------- Subida de fotos por lotes ----------
   var uploader = document.getElementById('uploader');
   if (uploader) {

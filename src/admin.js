@@ -1,7 +1,7 @@
 // Panel de gestión de Perrufest (/admin)
 import { html, raw, slugify, parseCookies, sign, unsign, safeEqual, readForm, sniffImage, uid, formatRange } from './util.js';
 import * as data from './data.js';
-import { photoUrl, fileUrl, KINDS } from './views.js';
+import { photoUrl, fileUrl, KINDS, partnerUrl } from './views.js';
 import { ICON_NAMES } from './icons.js';
 
 const COOKIE = 'pf_admin';
@@ -33,7 +33,7 @@ function layout(c, title, body, active = '') {
   const nav = [
     ['panel', '/admin', 'Inicio'],
     ['eventos', '/admin/eventos', 'Eventos y galerías'],
-    ['colaboradores', '/admin/colaboradores', 'Colaboradores'],
+    ['colaboradores', '/admin/colaboradores', 'Organizadores y colaboradores'],
     ['ajustes', '/admin/ajustes', 'Textos y contacto'],
     ['mensajes', '/admin/mensajes', 'Mensajes'],
   ];
@@ -107,6 +107,7 @@ async function pendingItems(env) {
   if (!s.whatsapp) items.push(['Indicar el número de WhatsApp', '/admin/ajustes#contacto']);
   if (!s.instagram) items.push(['Indicar la cuenta de Instagram', '/admin/ajustes#contacto']);
   if (!s.org_name || !s.org_nif || !s.org_address) items.push(['Completar los datos de la entidad organizadora (nombre, NIF, domicilio)', '/admin/ajustes#organizacion']);
+  if (!(await data.organizers(env.DB)).length) items.push(['Añadir los organizadores (vuestras empresas)', '/admin/colaboradores?tipo=organizador#form']);
   if (/\[PENDIENTE/.test(s.legal_text)) items.push(['Revisar y completar el aviso legal (quitar las marcas [PENDIENTE])', '/admin/ajustes#legal']);
   if (/\[PENDIENTE/.test(s.privacy_text)) items.push(['Revisar y completar la política de privacidad (quitar las marcas [PENDIENTE])', '/admin/ajustes#legal']);
   if (!env.MEDIA_URL) items.push(['Recomendado: conectar el dominio de fotos (paso 6 de la guía) para que las galerías carguen más rápido y no consuman el límite gratuito', '']);
@@ -160,7 +161,7 @@ ${flash(url)}
 
 async function eventForm(c, env, e, url) {
   const isNew = !e.id;
-  const partners = await data.all(env.DB, 'SELECT * FROM partners ORDER BY kind, name');
+  const partners = await data.all(env.DB, "SELECT * FROM partners WHERE kind != 'organizador' ORDER BY kind, sort, id");
   const linked = new Set(isNew ? [] : (await data.all(env.DB, 'SELECT partner_id FROM event_partners WHERE event_id = ?', e.id)).map((r) => r.partner_id));
   const videos = isNew ? [] : await data.videosOf(env.DB, e.id);
   return layout(c, isNew ? 'Nuevo evento' : e.displayTitle, html`
@@ -195,9 +196,9 @@ ${isNew ? '' : html`<div><a class="a-btn a-btn-ghost" href="/eventos/${e.slug}" 
   ${field('Dirección de la página', 'slug', e.slug, { help: 'Se genera sola a partir de la localidad y el año. Cámbiala solo si sabes lo que haces: los enlaces ya compartidos dejarían de funcionar.', attrs: ' pattern="[a-z0-9\\-]*"' })}
 </section>
 <section class="a-card">
-  <h2>Colaboradores de esta edición</h2>
-  ${partners.length ? html`<div class="a-checks">${partners.map((p) => html`<label><input type="checkbox" name="partners[]" value="${p.id}"${linked.has(p.id) ? raw(' checked') : ''}> ${p.name} <span class="a-muted">(${p.kind})</span></label>`)}</div>`
-    : html`<p class="a-muted">Aún no hay colaboradores. <a href="/admin/colaboradores">Añádelos aquí</a> y luego márcalos en cada edición.</p>`}
+  <h2>Ayuntamiento, patrocinadores y colaboradores de esta edición</h2>
+  ${partners.length ? html`<div class="a-checks">${partners.map((p) => html`<label><input type="checkbox" name="partners[]" value="${p.id}"${linked.has(p.id) ? raw(' checked') : ''}> ${p.name} <span class="a-muted">(${kindName(p.kind)})</span></label>`)}</div>`
+    : html`<p class="a-muted">Aún no hay ninguno. <a href="/admin/colaboradores">Añádelos aquí</a> y luego márcalos en cada edición. Los organizadores no hace falta marcarlos: salen siempre.</p>`}
 </section>
 <section class="a-card">
   <label class="a-switch"><input type="checkbox" name="published" value="1"${e.published || isNew ? raw(' checked') : ''}> Publicado (visible en la web)</label>
@@ -273,40 +274,54 @@ async function photosPage(c, env, e) {
 </section>`, 'eventos');
 }
 
+const KIND_LIST = [
+  ['organizador', 'Organizador', 'Organizadores', 'Vuestras empresas. Aparecen siempre, en toda la web.'],
+  ['ayuntamiento', 'Ayuntamiento', 'Ayuntamientos', 'El de la localidad de cada edición.'],
+  ['patrocinador', 'Patrocinador', 'Patrocinadores', 'Quien aporta dinero o recursos a una edición.'],
+  ['colaborador', 'Colaborador', 'Colaboradores', 'Exhibiciones, actividades y demás participantes, con su Instagram o web.'],
+];
+const kindName = (k) => (KIND_LIST.find(([x]) => x === k) || [k, k])[1];
+
 async function partnersPage(c, env, url, edit) {
   const partners = await data.allPartners(env.DB);
   const events = await data.listEvents(env.DB, true);
-  const p = edit || { name: '', kind: 'ayuntamiento', url: '', logo: '' };
+  const preset = KIND_LIST.some(([k]) => k === url.searchParams.get('tipo')) ? url.searchParams.get('tipo') : 'colaborador';
+  const p = edit || { name: '', kind: preset, url: '', logo: '' };
   const linked = new Set(edit ? (await data.all(env.DB, 'SELECT event_id FROM event_partners WHERE partner_id = ?', edit.id)).map((r) => r.event_id) : []);
-  return layout(c, 'Colaboradores', html`
+  return layout(c, 'Organizadores y colaboradores', html`
 ${flash(url)}
-<h1>Colaboradores</h1>
-<p class="a-muted">Ayuntamientos, patrocinadores y colaboradores. Su logo aparece en las ediciones en las que han participado y en el pie de la web, enlazado a esas ediciones.</p>
+<h1>Organizadores, ayuntamientos, patrocinadores y colaboradores</h1>
+<p class="a-muted">Los <strong>organizadores</strong> salen siempre. Los ayuntamientos, patrocinadores y colaboradores salen en las ediciones que marques (en su ficha y en el inicio cuando es la edición actual). Si pones su Instagram o web, al pulsar su logo se abre directamente.</p>
 <div class="a-grid2">
-<section class="a-card">
-  <h2>${edit ? `Editar: ${edit.name}` : 'Añadir colaborador'}</h2>
+<section class="a-card" id="form">
+  <h2>${edit ? `Editar: ${edit.name}` : 'Añadir'}</h2>
   <form method="post" class="a-form" action="${edit ? `/admin/colaboradores/${edit.id}` : '/admin/colaboradores'}">
-    ${field('Nombre', 'name', p.name, { required: true })}
     <div class="a-field"><label for="f-kind">Tipo</label><select id="f-kind" name="kind">
-      ${[['ayuntamiento', 'Ayuntamiento'], ['patrocinador', 'Patrocinador'], ['colaborador', 'Colaborador']].map(([k, l]) => html`<option value="${k}"${p.kind === k ? raw(' selected') : ''}>${l}</option>`)}
+      ${KIND_LIST.map(([k, l, , help]) => html`<option value="${k}"${p.kind === k ? raw(' selected') : ''}>${l} — ${help}</option>`)}
     </select></div>
-    ${field('Web (opcional)', 'url', p.url, { type: 'url' })}
-    ${uploadField('Logo', 'logo', p.logo, { max: 800, help: 'Mejor PNG con fondo transparente.' })}
-    <div class="a-field"><label>Ediciones en las que participa</label><div class="a-checks">
+    ${field('Nombre', 'name', p.name, { required: true })}
+    ${field('Instagram o web (opcional)', 'url', p.url, { placeholder: '@usuario o https://…', help: 'Puedes poner solo el usuario de Instagram (@usuario) o un enlace completo.' })}
+    ${uploadField('Logo', 'logo', p.logo, { max: 800, help: 'Mejor PNG con fondo transparente. Si no hay logo, se muestra el nombre.' })}
+    <div class="a-field" id="ed-checks"${p.kind === 'organizador' ? raw(' hidden') : ''}><label>Ediciones en las que participa</label><div class="a-checks">
       ${events.map((e) => html`<label><input type="checkbox" name="events[]" value="${e.id}"${linked.has(e.id) ? raw(' checked') : ''}> ${e.displayTitle} <span class="a-muted">${e.dateLabel}</span></label>`)}
     </div></div>
     <button class="a-btn">${edit ? 'Guardar' : 'Añadir'}</button> ${edit ? html`<a href="/admin/colaboradores">Cancelar</a>` : ''}
   </form>
 </section>
-<section class="a-card">
-  <h2>Listado</h2>
-  ${partners.length ? html`<ul class="a-partners">${partners.map((x) => html`<li>
+<div>
+${KIND_LIST.map(([k, , many]) => {
+  const g = partners.filter((x) => (x.kind || 'colaborador') === k);
+  return html`<section class="a-card">
+  <div class="a-head"><h2>${many} (${g.length})</h2><a class="a-btn a-btn-sm a-btn-ghost" href="/admin/colaboradores?tipo=${k}#form">+ Añadir</a></div>
+  ${g.length ? html`<ul class="a-partners">${g.map((x) => html`<li>
     ${x.logo ? html`<img src="${fileUrl(x.logo)}" alt="">` : html`<span class="a-empty">Sin logo</span>`}
-    <div><strong>${x.name}</strong> <span class="a-muted">${x.kind}</span><br><span class="a-muted">${x.events.map((e) => e.town).join(', ') || 'Sin ediciones'}</span></div>
+    <div><strong>${x.name}</strong>${x.url ? html`<br><span class="a-muted">${x.url}</span>` : ''}<br><span class="a-muted">${k === 'organizador' ? 'Siempre visible' : x.events.map((e) => e.town).join(', ') || 'Sin ediciones marcadas'}</span></div>
     <div class="a-actions"><a class="a-btn a-btn-sm" href="/admin/colaboradores/${x.id}">Editar</a>
     <form method="post" action="/admin/colaboradores/${x.id}/borrar" class="a-inline" data-confirm="¿Eliminar ${x.name}?"><button class="a-btn a-btn-sm a-btn-danger">Borrar</button></form></div>
-  </li>`)}</ul>` : html`<p class="a-muted">Sin colaboradores todavía.</p>`}
-</section>
+  </li>`)}</ul>` : html`<p class="a-muted">Ninguno todavía.</p>`}
+</section>`;
+})}
+</div>
 </div>`, 'colaboradores');
 }
 
@@ -620,14 +635,15 @@ export async function handleAdmin(request, env, url, h) {
       const f = await readForm(request);
       const name = String(f.name || '').trim().slice(0, 160);
       if (!name) return h.redirect('/admin/colaboradores');
-      const kind = ['ayuntamiento', 'patrocinador', 'colaborador'].includes(f.kind) ? f.kind : 'colaborador';
-      const purl = /^https?:\/\//.test(f.url || '') ? String(f.url).slice(0, 500) : '';
+      const kind = KIND_LIST.some(([k]) => k === f.kind) ? f.kind : 'colaborador';
+      const rawUrl = String(f.url || '').trim().slice(0, 500);
+      const purl = partnerUrl(rawUrl) ? rawUrl : '';
       const logo = isFilePath(f.logo) ? f.logo || '' : '';
       let pid = id;
       if (id) await db.prepare('UPDATE partners SET name = ?, kind = ?, url = ?, logo = ? WHERE id = ?').bind(name, kind, purl, logo, id).run();
       else pid = Number((await db.prepare('INSERT INTO partners (name, kind, url, logo) VALUES (?, ?, ?, ?)').bind(name, kind, purl, logo).run()).meta.last_row_id);
       const stmts = [db.prepare('DELETE FROM event_partners WHERE partner_id = ?').bind(pid)];
-      for (const eid of [].concat(f.events || [])) stmts.push(db.prepare('INSERT OR IGNORE INTO event_partners (event_id, partner_id) VALUES (?, ?)').bind(Number(eid), pid));
+      for (const eid of kind === 'organizador' ? [] : [].concat(f.events || [])) stmts.push(db.prepare('INSERT OR IGNORE INTO event_partners (event_id, partner_id) VALUES (?, ?)').bind(Number(eid), pid));
       await db.batch(stmts);
       return h.redirect(`/admin/colaboradores?ok=${id ? 'guardado' : 'creado'}`);
     }

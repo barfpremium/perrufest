@@ -120,14 +120,12 @@ function contactLinks(s, { big = false } = {}) {
 
 function footer(ctx) {
   const s = ctx.settings;
-  const partners = ctx.partners || [];
+  const orgs = ctx.organizers || [];
   return html`<footer class="footer">
   <div class="wrap">
-    ${partners.length ? html`<section class="footer-partners" aria-labelledby="fp-t">
-      <h2 id="fp-t">Han hecho posible Perrufest</h2>
-      <ul class="partner-logos">
-        ${partners.map((p) => partnerLogo(p, p.events[0] ? `/eventos/${p.events[0].slug}` : p.url, p.events.map((e) => e.town).join(', ')))}
-      </ul>
+    ${orgs.length && !ctx.orgsShown ? html`<section class="footer-partners" aria-labelledby="fp-t">
+      <h2 id="fp-t">Organizan Perrufest</h2>
+      <ul class="partner-logos">${orgs.map(partnerLogo)}</ul>
     </section>` : ''}
     <div class="footer-grid">
       <div>
@@ -135,7 +133,7 @@ function footer(ctx) {
         <p class="muted">${s.site_tagline}</p>
       </div>
       <div>
-        <h2 class="footer-h">Organiza</h2>
+        <h2 class="footer-h">Titular de la web</h2>
         <p>${s.org_name || pending('Nombre de la entidad')}<br>
         ${s.org_nif ? html`NIF ${s.org_nif}` : pending('NIF/CIF')}<br>
         ${s.org_address || pending('Domicilio')}<br>
@@ -151,20 +149,47 @@ function footer(ctx) {
 </footer>`;
 }
 
-function partnerLogo(p, href, title) {
-  const inner = p.logo ? html`<img src="${fileUrl(p.logo)}" alt="${p.name}" loading="lazy">` : html`<span class="partner-name">${p.name}</span>`;
-  return html`<li><a href="${href || '#'}" title="${p.name}${title ? ' · ' + title : ''}">${inner}</a></li>`;
+// ---------- Organizadores, ayuntamientos, patrocinadores y colaboradores ----------
+/** Enlace de un colaborador: web, enlace de Instagram o @usuario */
+export function partnerUrl(v) {
+  v = String(v || '').trim();
+  if (!v) return '';
+  if (/^https?:\/\//.test(v)) return v;
+  if (/^@[\w.]{1,30}$/.test(v)) return `https://www.instagram.com/${v.slice(1)}/`;
+  if (/^[\w-]+(\.[\w-]+)*\.(com|es|org|net|eu|info|cat|io|me|app|shop|online)(\/\S*)?$/i.test(v)) return `https://${v}`; // p. ej. instagram.com/usuario o miweb.es
+  if (/^[\w.]{1,30}$/.test(v)) return `https://www.instagram.com/${v}/`; // usuario de Instagram sin @
+  return '';
 }
-
-function partnersBlock(partners) {
-  if (!partners.length) return '';
-  const groups = { ayuntamiento: 'Ayuntamientos', patrocinador: 'Patrocinadores', colaborador: 'Colaboradores' };
+const isInstagram = (u) => /instagram\.com\//.test(u);
+function partnerLogo(p) {
+  const href = partnerUrl(p.url);
+  const inner = p.logo ? html`<img src="${fileUrl(p.logo)}" alt="${p.name}" loading="lazy">` : html`<span class="partner-name">${p.name}</span>`;
+  const ig = href && isInstagram(href) ? icon('instagram', 'ic ic-sm') : '';
+  const cap = p.logo ? html`<span class="partner-cap">${p.name} ${ig}</span>` : (ig ? html`<span class="partner-cap">${ig} Instagram</span>` : '');
+  return href
+    ? html`<li><a href="${href}" target="_blank" rel="noopener" title="${p.name}">${inner}${cap}</a></li>`
+    : html`<li><div class="partner-box">${inner}${cap}</div></li>`;
+}
+const GROUPS = [
+  ['organizador', 'Organizan', 'Organizan'],
+  ['ayuntamiento', 'Ayuntamiento', 'Ayuntamientos'],
+  ['patrocinador', 'Patrocinador', 'Patrocinadores'],
+  ['colaborador', 'Colaborador', 'Colaboradores'],
+];
+/** Bloque con organizadores (siempre) + ayuntamiento, patrocinadores y colaboradores de una edición */
+function partnersBlock(ctx, partners, edition) {
+  const list = [...(ctx.organizers || []), ...partners];
+  if (!list.length) return '';
+  if (ctx.organizers?.length) ctx.orgsShown = true; // evita repetirlos en el pie
   return html`<section class="block partners" aria-labelledby="pt-t">
-    <h2 id="pt-t" class="h-sec">Con la colaboración de</h2>
-    ${Object.entries(groups).map(([k, label]) => {
-      const list = partners.filter((p) => (p.kind || 'colaborador') === k);
-      return list.length ? html`<h3 class="partners-h">${label}</h3><ul class="partner-logos">${list.map((p) => partnerLogo(p, p.url, ''))}</ul>` : '';
+    <h2 id="pt-t" class="h-sec">Quién hace posible Perrufest</h2>
+    ${edition && partners.length ? html`<p class="muted">Edición de ${edition.town} · ${edition.dateLabel}</p>` : ''}
+    <div class="partner-groups">
+    ${GROUPS.map(([k, one, many]) => {
+      const g = list.filter((p) => (p.kind || 'colaborador') === k);
+      return g.length ? html`<div class="partner-group partner-${k}"><h3 class="partners-h">${g.length === 1 ? one : many}</h3><ul class="partner-logos">${g.map(partnerLogo)}</ul></div>` : '';
     })}
+    </div>
   </section>`;
 }
 
@@ -213,7 +238,7 @@ function logoImg(s, loading = 'lazy') {
 }
 
 // ---------- Páginas ----------
-function home(ctx, { featured, upcoming }) {
+function home(ctx, { featured, upcoming, edition, editionPartners = [] }) {
   const s = ctx.settings;
   const body = html`
 <section class="hero">
@@ -266,6 +291,8 @@ ${featured ? html`<section class="wrap block">
   <div class="sec-head"><h2 id="next-t" class="h-sec">Próximos eventos</h2>${upcoming.length ? html`<a class="link-arrow" href="/proximos-eventos">Ver todos ${icon('arrow')}</a>` : ''}</div>
   ${upcoming.length ? html`<ul class="e-list">${upcoming.slice(0, 3).map(eventCard)}</ul>` : emptyUpcoming(s)}
 </section>
+
+<div class="wrap">${partnersBlock(ctx, editionPartners, edition)}</div>
 
 <section class="wrap block">
   <div class="cta-band">
@@ -344,7 +371,7 @@ function eventPage(ctx, { e, partners, videos }) {
   </div>
   ${e.program ? html`<section class="block"><h2 class="h-sec">Programa</h2>${programList(e.program)}</section>` : ''}
   ${!e.isPast && videos.length ? html`<section class="block">${videos.map(videoEmbed)}</section>` : ''}
-  ${partnersBlock(partners)}
+  ${partnersBlock(ctx, partners, e)}
   ${!e.isPast ? html`<div class="cta-band block"><div><h2>¿Quieres participar en esta edición?</h2><p>${ctx.settings.participate_text}</p></div><a class="btn btn-light btn-lg" href="/participa">Quiero participar ${icon('arrow')}</a></div>` : ''}
 </article>`;
   return layout(ctx, {
@@ -396,7 +423,7 @@ ${videos.length ? html`<section class="wrap block videos" aria-label="Vídeos">$
   ` : html`<div class="empty">${icon('images', 'ic ic-xl')}<p>Estamos preparando las fotos de esta edición. ¡Vuelve muy pronto!</p></div>`}
   <p class="takedown">¿Apareces en alguna foto y prefieres que la retiremos? <a href="/participa?retirada=${e.slug}">Solicita su retirada</a>.</p>
 </section>
-${partners.length ? html`<div class="wrap">${partnersBlock(partners)}</div>` : ''}
+<div class="wrap">${partnersBlock(ctx, partners, e)}</div>
 ${lightbox()}`;
   return layout(ctx, {
     title: `Fotos de ${e.displayTitle}`, description: `${e.dateLabel}. ${photos.length ? photos.length + ' fotos para ver, descargar y compartir.' : 'Galería de Perrufest.'}`,
