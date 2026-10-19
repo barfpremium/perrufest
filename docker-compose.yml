@@ -18,7 +18,6 @@ services:
       - "80:80"
       - "443:443"
       - "443:443/udp"
-      - "8080:8080"             # acceso provisional por IP para comprobar la mudanza
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./data/media:/srv/media:ro

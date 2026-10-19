@@ -18,15 +18,3 @@
 www.{$DOMAIN} {
 	redir https://{$DOMAIN}{uri} permanent
 }
-
-# Acceso provisional por IP (http://IP-DEL-SERVIDOR:8080) para comprobar la web antes de cambiar el dominio
-:8080 {
-	encode zstd gzip
-	handle_path /media/* {
-		root * /srv/media
-		file_server
-	}
-	handle {
-		reverse_proxy web:3000
-	}
-}
