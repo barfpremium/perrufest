@@ -549,6 +549,21 @@ async function deletePrefix(env, prefix) {
   } while (cursor);
 }
 
+// ---------- Exportación completa (datos + lista de archivos) ----------
+const EXPORT_TABLES = ['settings', 'events', 'photos', 'videos', 'partners', 'event_partners', 'messages'];
+async function exportAll(env) {
+  const tables = {};
+  for (const t of EXPORT_TABLES) tables[t] = await data.all(env.DB, `SELECT * FROM ${t}`);
+  const files = [];
+  let cursor;
+  do {
+    const list = await env.MEDIA.list({ cursor, limit: 1000 });
+    for (const o of list.objects) files.push({ key: o.key, size: o.size });
+    cursor = list.truncated ? list.cursor : undefined;
+  } while (cursor);
+  return { ok: true, version: 1, exported_at: new Date().toISOString(), tables, files };
+}
+
 // ---------- Enrutador del panel ----------
 export async function handleAdmin(request, env, url, h) {
   const db = env.DB;
@@ -586,6 +601,7 @@ export async function handleAdmin(request, env, url, h) {
   if (post && p === '/admin/api/subir') return uploadFile(request, env, url, h);
   if (post && (r = p.match(/^\/admin\/api\/eventos\/(\d+)\/fotos$/))) return uploadPhoto(request, env, url, h, Number(r[1]));
   if (post && p === '/admin/api/fotos') return h.json(await photoAction(env, await readForm(request)));
+  if (p === '/admin/api/exportar') return h.json(await exportAll(env)); // para mudar la web a otro servidor
 
   const c = { version, unread: (await data.one(db, 'SELECT COUNT(*) AS n FROM messages WHERE is_read = 0')).n };
 

@@ -1,0 +1,31 @@
+# Perrufest en un servidor propio: la web (Node) + Caddy (HTTPS automático).
+# La configuración (dominio, contraseña…) está en el archivo .env que crea la instalación.
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      PORT: "3000"
+    volumes:
+      - ./data:/data            # base de datos y fotos: lo único importante del servidor
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+      - "8080:8080"             # acceso provisional por IP para comprobar la mudanza
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/media:/srv/media:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+volumes:
+  caddy_data:
+  caddy_config:

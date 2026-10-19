@@ -1,0 +1,32 @@
+# Caddy obtiene y renueva solo el certificado HTTPS del dominio.
+{$DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 2GB
+	}
+	# Las fotos y archivos subidos se sirven directamente desde el disco
+	handle_path /media/* {
+		root * /srv/media
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+# Acceso provisional por IP (http://IP-DEL-SERVIDOR:8080) para comprobar la web antes de cambiar el dominio
+:8080 {
+	encode zstd gzip
+	handle_path /media/* {
+		root * /srv/media
+		file_server
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+}

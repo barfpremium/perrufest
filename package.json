@@ -6,7 +6,8 @@
   "description": "Web de Perrufest — Festival Perruno Familiar (Cloudflare Workers + D1 + R2)",
   "scripts": {
     "deploy": "wrangler deploy",
-    "local": "node --disable-warning=ExperimentalWarning test/local-server.js"
+    "start": "node --disable-warning=ExperimentalWarning node/server.js",
+    "importar": "node --disable-warning=ExperimentalWarning node/importar.js"
   },
   "devDependencies": {
     "wrangler": "^4.45.0"

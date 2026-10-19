@@ -1,0 +1,16 @@
+#cloud-config
+# ====================================================================
+#  PERRUFEST · Configuración inicial del servidor
+#  Rellena las 4 líneas de abajo (después del «=») y pega TODO este texto
+#  en el apartado «Cloud config» / «User data» al crear el servidor.
+# ====================================================================
+write_files:
+  - path: /opt/perrufest.env
+    permissions: "0600"
+    content: |
+      DOMAIN=perrufest.com
+      ADMIN_PASSWORD=LA_MISMA_CONTRASEÑA_DEL_PANEL
+      REPO=https://github.com/TU_USUARIO/perrufest
+      OLD_URL=https://perrufest.TU_CUENTA.workers.dev
+runcmd:
+  - [bash, -c, "apt-get update -q && apt-get install -y -q git && set -a && . /opt/perrufest.env && git clone \"$REPO\" /opt/perrufest && bash /opt/perrufest/deploy/instalar.sh"]

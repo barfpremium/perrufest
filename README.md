@@ -1,3 +1,5 @@
+> **Importante (octubre de 2026):** por los bloqueos de LaLiga a las direcciones de Cloudflare, la web se muda a un servidor propio. Sigue **GUIA-MUDANZA.md**. Esta guía de Cloudflare queda solo como referencia.
+
 # Web de Perrufest — guía de publicación en Cloudflare
 
 La web funciona entera en Cloudflare, con su plan gratuito:
@@ -62,7 +64,8 @@ Todo se hace desde `tudominio/admin`, en el móvil o en el ordenador:
 
 - **Eventos y galerías**: crear una edición nueva y editar fechas, horarios, cartel, programa, precios, dirección y vídeos. Un evento aparece en «Próximos eventos» hasta que pasa su fecha. Después pasa solo a la Galería.
 - **Fotos**: subida por lotes, grupos por día o actividad, orden, portada y borrado. El navegador prepara la miniatura, la versión para ver y la de descarga, y quita los datos de ubicación GPS.
-- **Colaboradores**, **Textos y contacto** y **Mensajes** del formulario.
+- **Organizadores y colaboradores**: organizadores (siempre visibles), ayuntamiento, patrocinadores y colaboradores de cada edición, con su logo e Instagram o web.
+- **Textos y contacto** y **Mensajes** del formulario.
 
 Las fotos HEIC de iPhone se convierten bien si se suben desde Safari. Los vídeos, mejor como enlace de YouTube; si se suben como archivo, el máximo son 95 MB.
 
@@ -76,4 +79,4 @@ Sube los archivos nuevos al repositorio de GitHub. Cloudflare publica la nueva v
 
 ## Para desarrolladores
 
-`ADMIN_PASSWORD=prueba npm run local` arranca un simulador en Node 22 (D1 con SQLite y R2 en carpeta) en http://localhost:8787.
+`ADMIN_PASSWORD=prueba npm start` arranca la web en Node 22 (SQLite y carpeta de archivos en `./data`) en http://localhost:3000. Es lo mismo que ejecuta el servidor propio (ver `Dockerfile`, `docker-compose.yml`, `Caddyfile` y la carpeta `deploy`).
